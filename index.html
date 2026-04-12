@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InstaScroll</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0a;
+            color: #e5e5e5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        .glow {
+            position: fixed;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(225, 48, 108, 0.15) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 640px;
+            width: 100%;
+            padding: 0 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .hero {
+            margin-top: 100px;
+            text-align: center;
+        }
+
+        .icon {
+            width: 88px;
+            height: 88px;
+            border-radius: 22px;
+            background: linear-gradient(135deg, #833AB4, #E1306C, #F77737);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 28px;
+            box-shadow: 0 8px 32px rgba(225, 48, 108, 0.3);
+        }
+
+        .icon svg {
+            width: 44px;
+            height: 44px;
+            fill: white;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -1.5px;
+            margin-bottom: 12px;
+        }
+
+        .tagline {
+            font-size: 18px;
+            color: #888;
+            font-weight: 400;
+            margin-bottom: 40px;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 36px;
+            background: linear-gradient(135deg, #833AB4, #E1306C);
+            color: white;
+            text-decoration: none;
+            border-radius: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 24px rgba(225, 48, 108, 0.3);
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(225, 48, 108, 0.45);
+        }
+
+        .download-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .version {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .cards {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 64px;
+            width: 100%;
+        }
+
+        .card {
+            background: #141414;
+            border: 1px solid #222;
+            border-radius: 16px;
+            padding: 24px 28px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 22px;
+        }
+
+        .card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .card p {
+            font-size: 13px;
+            color: #777;
+            line-height: 1.4;
+        }
+
+        .kbd {
+            display: inline-block;
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            color: #ccc;
+        }
+
+        .setup {
+            margin-top: 64px;
+            width: 100%;
+        }
+
+        .setup h2 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 20px;
+            letter-spacing: -0.5px;
+        }
+
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .step {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #888;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .step p {
+            font-size: 15px;
+            color: #aaa;
+            line-height: 1.6;
+        }
+
+        .footer {
+            margin-top: 80px;
+            margin-bottom: 40px;
+            text-align: center;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .footer a {
+            color: #555;
+            text-decoration: none;
+        }
+
+        @media (max-width: 480px) {
+            .hero { margin-top: 60px; }
+            h1 { font-size: 36px; }
+            .tagline { font-size: 16px; }
+            .cards { gap: 12px; margin-top: 48px; }
+            .card { padding: 20px; gap: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="glow"></div>
+    <div class="container">
+        <div class="hero">
+            <div class="icon">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15 4H9C5.686 4 3 6.686 3 10v4c0 3.314 2.686 6 6 6h6c3.314 0 6-2.686 6-6v-4c0-3.314-2.686-6-6-6zm-3 14a6 6 0 110-12 6 6 0 010 12zm0-10a4 4 0 100 8 4 4 0 000-8z"/>
+                    <path d="M7 12l3-3v2h4v2h-4v2l-3-3z" opacity="0.7"/>
+                </svg>
+            </div>
+            <h1>InstaScroll</h1>
+            <p class="tagline">Scroll Instagram with your volume buttons.</p>
+            <a href="https://github.com/AUstnnnnnn/InstaScroll/releases/latest/download/InstaScroll.apk" class="download-btn">
+                <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                Download APK
+            </a>
+            <p class="version">v1.0 &middot; Android 8+</p>
+        </div>
+
+        <div class="cards">
+            <div class="card">
+                <div class="card-icon">&#x1F53C;</div>
+                <div>
+                    <h3>Volume Up &mdash; Previous Post</h3>
+                    <p>Press <span class="kbd">Vol Up</span> to scroll back to the previous post.</p>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-icon">&#x1F53D;</div>
+                <div>
+                    <h3>Volume Down &mdash; Next Post</h3>
+                    <p>Press <span class="kbd">Vol Down</span> to scroll to the next post.</p>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-icon">&#x2764;&#xFE0F;</div>
+                <div>
+                    <h3>Double Press Down &mdash; Like</h3>
+                    <p>Quick double-press <span class="kbd">Vol Down</span> to like the current post.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="setup">
+            <h2>Setup</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <p>Download and install the APK on your Android device.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <p>Open InstaScroll and tap <strong>Open Accessibility Settings</strong>.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <p>Find <strong>InstaScroll</strong> in the list and enable it.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <p>Open Instagram. Volume keys are now remapped &mdash; only while Instagram is in the foreground.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <a href="https://github.com/AUstnnnnnn/InstaScroll">GitHub</a>
+        </div>
+    </div>
+</body>
+</html>

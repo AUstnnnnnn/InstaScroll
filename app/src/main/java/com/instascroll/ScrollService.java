@@ -1,6 +1,7 @@
 package com.instascroll;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.accessibilityservice.GestureDescription;
 import android.graphics.Path;
 import android.os.Handler;
@@ -23,6 +24,14 @@ public class ScrollService extends AccessibilityService {
     private static final long DOUBLE_CLICK_MS = 400;
     private Runnable pendingScroll = null;
 
+    // Long-press detection for Volume Up
+    private static final long LONG_PRESS_MS = 500;
+    private boolean volUpHeld = false;
+    private Runnable pendingLongPress = null;
+
+    // Comments state
+    private boolean inComments = false;
+
     // Screen dimensions
     private int screenW = 1080;
     private int screenH = 2410;
@@ -31,12 +40,32 @@ public class ScrollService extends AccessibilityService {
     public void onServiceConnected() {
         super.onServiceConnected();
         isRunning = true;
+        refreshServiceInfo();
+        updateScreenDimensions();
+        Log.d(TAG, "Service connected. Screen: " + screenW + "x" + screenH);
+    }
 
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        updateScreenDimensions();
+        refreshServiceInfo();
+        Log.d(TAG, "Config changed, refreshed. Screen: " + screenW + "x" + screenH);
+    }
+
+    private void updateScreenDimensions() {
         DisplayMetrics dm = getResources().getDisplayMetrics();
         screenW = dm.widthPixels;
         screenH = dm.heightPixels;
+    }
 
-        Log.d(TAG, "Service connected. Screen: " + screenW + "x" + screenH);
+    /** Re-apply service info to refresh gesture dispatch capability after Doze/sleep. */
+    private void refreshServiceInfo() {
+        AccessibilityServiceInfo info = getServiceInfo();
+        if (info != null) {
+            setServiceInfo(info);
+            Log.d(TAG, "Service info refreshed");
+        }
     }
 
     @Override
@@ -56,7 +85,7 @@ public class ScrollService extends AccessibilityService {
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
         if (!isInstagramForeground) {
-            return false; // Don't intercept outside Instagram
+            return false;
         }
 
         int keyCode = event.getKeyCode();
@@ -64,11 +93,49 @@ public class ScrollService extends AccessibilityService {
             return false;
         }
 
-        if (event.getAction() != KeyEvent.ACTION_DOWN) {
-            return true; // Consume UP events too, but only act on DOWN
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            return handleVolumeUp(event);
+        } else {
+            return handleVolumeDown(event);
         }
+    }
 
-        // Avoid repeat events from long-press
+    private boolean handleVolumeUp(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            // First press — schedule long-press action
+            volUpHeld = false;
+            pendingLongPress = () -> {
+                volUpHeld = true;
+                toggleComments();
+            };
+            handler.postDelayed(pendingLongPress, LONG_PRESS_MS);
+
+        } else if (event.getAction() == KeyEvent.ACTION_UP) {
+            // Released — if it was a short press, do scroll
+            if (pendingLongPress != null) {
+                handler.removeCallbacks(pendingLongPress);
+                pendingLongPress = null;
+            }
+            if (!volUpHeld && !inComments) {
+                int cx = screenW / 2;
+                int cy = screenH / 2;
+                // Cancel any pending scroll-down
+                if (pendingScroll != null) {
+                    handler.removeCallbacks(pendingScroll);
+                    pendingScroll = null;
+                }
+                Log.d(TAG, "VOL UP -> scroll up (prev post)");
+                doSwipe(cx, cy - 400, cx, cy + 400, 250);
+            }
+            volUpHeld = false;
+        }
+        return true;
+    }
+
+    private boolean handleVolumeDown(KeyEvent event) {
+        if (event.getAction() != KeyEvent.ACTION_DOWN) {
+            return true;
+        }
         if (event.getRepeatCount() > 0) {
             return true;
         }
@@ -76,42 +143,52 @@ public class ScrollService extends AccessibilityService {
         int cx = screenW / 2;
         int cy = screenH / 2;
 
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            // Cancel any pending scroll-down
+        if (inComments) {
+            // Scroll comments: small swipe in the lower half of screen
+            Log.d(TAG, "VOL DOWN -> scroll comments");
+            int commentAreaY = screenH * 3 / 4;
+            doSwipe(cx, commentAreaY + 150, cx, commentAreaY - 150, 200);
+            return true;
+        }
+
+        // Normal post scrolling with double-click detection
+        long now = System.currentTimeMillis();
+        if (now - lastVolDownTime < DOUBLE_CLICK_MS) {
             if (pendingScroll != null) {
                 handler.removeCallbacks(pendingScroll);
                 pendingScroll = null;
             }
-            Log.d(TAG, "VOL UP -> scroll up (prev post)");
-            // Swipe DOWN to scroll up: finger moves from low Y to high Y
-            doSwipe(cx, cy - 400, cx, cy + 400, 250);
-
-        } else if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            long now = System.currentTimeMillis();
-
-            if (now - lastVolDownTime < DOUBLE_CLICK_MS) {
-                // Double click = like
-                if (pendingScroll != null) {
-                    handler.removeCallbacks(pendingScroll);
-                    pendingScroll = null;
-                }
-                lastVolDownTime = 0;
-                Log.d(TAG, "VOL DOWN x2 -> LIKE");
-                doDoubleTap(cx, cy);
-            } else {
-                // First press - delayed scroll
-                lastVolDownTime = now;
-                pendingScroll = () -> {
-                    Log.d(TAG, "VOL DOWN -> scroll down (next post)");
-                    // Swipe UP to scroll down: finger moves from high Y to low Y
-                    doSwipe(cx, cy + 400, cx, cy - 400, 250);
-                    pendingScroll = null;
-                };
-                handler.postDelayed(pendingScroll, DOUBLE_CLICK_MS);
-            }
+            lastVolDownTime = 0;
+            Log.d(TAG, "VOL DOWN x2 -> LIKE");
+            doDoubleTap(cx, cy);
+        } else {
+            lastVolDownTime = now;
+            pendingScroll = () -> {
+                Log.d(TAG, "VOL DOWN -> scroll down (next post)");
+                doSwipe(cx, cy + 400, cx, cy - 400, 250);
+                pendingScroll = null;
+            };
+            handler.postDelayed(pendingScroll, DOUBLE_CLICK_MS);
         }
+        return true;
+    }
 
-        return true; // Consume the event - prevents volume change
+    private void toggleComments() {
+        int cx = screenW / 2;
+        if (inComments) {
+            // Close comments: swipe down from comment sheet to dismiss
+            Log.d(TAG, "HOLD VOL UP -> close comments");
+            int commentTop = screenH / 2;
+            doSwipe(cx, commentTop, cx, screenH, 200);
+            inComments = false;
+        } else {
+            // Open comments: tap the comment icon (right side, Reels layout)
+            int commentIconX = screenW - 90;
+            int commentIconY = screenH * 3 / 5;
+            Log.d(TAG, "HOLD VOL UP -> open comments at " + commentIconX + "," + commentIconY);
+            doTap(commentIconX, commentIconY);
+            inComments = true;
+        }
     }
 
     private void doSwipe(int x1, int y1, int x2, int y2, long durationMs) {
@@ -121,7 +198,39 @@ public class ScrollService extends AccessibilityService {
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
         builder.addStroke(new GestureDescription.StrokeDescription(path, 0, durationMs));
-        dispatchGesture(builder.build(), null, null);
+        GestureDescription gesture = builder.build();
+        dispatchGesture(gesture, new GestureResultCallback() {
+            @Override
+            public void onCancelled(GestureDescription g) {
+                Log.w(TAG, "Swipe CANCELLED — refreshing service and retrying");
+                refreshServiceInfo();
+                updateScreenDimensions();
+                // Retry once after refresh
+                dispatchGesture(gesture, new GestureResultCallback() {
+                    @Override
+                    public void onCancelled(GestureDescription g2) {
+                        Log.e(TAG, "Swipe retry CANCELLED — gesture dispatch broken");
+                    }
+                }, null);
+            }
+        }, null);
+    }
+
+    private void doTap(int x, int y) {
+        Path path = new Path();
+        path.moveTo(x, y);
+
+        GestureDescription.Builder builder = new GestureDescription.Builder();
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 50));
+        GestureDescription gesture = builder.build();
+        dispatchGesture(gesture, new GestureResultCallback() {
+            @Override
+            public void onCancelled(GestureDescription g) {
+                Log.w(TAG, "Tap CANCELLED — refreshing service and retrying");
+                refreshServiceInfo();
+                dispatchGesture(gesture, null, null);
+            }
+        }, null);
     }
 
     private void doDoubleTap(int x, int y) {
@@ -136,7 +245,21 @@ public class ScrollService extends AccessibilityService {
         builder.addStroke(new GestureDescription.StrokeDescription(tap1, 0, 50));
         // Second tap: starts at 100ms, lasts 50ms (50ms gap between taps)
         builder.addStroke(new GestureDescription.StrokeDescription(tap2, 100, 50));
-        dispatchGesture(builder.build(), null, null);
+        GestureDescription gesture = builder.build();
+        dispatchGesture(gesture, new GestureResultCallback() {
+            @Override
+            public void onCancelled(GestureDescription g) {
+                Log.w(TAG, "DoubleTap CANCELLED — refreshing service and retrying");
+                refreshServiceInfo();
+                updateScreenDimensions();
+                dispatchGesture(gesture, new GestureResultCallback() {
+                    @Override
+                    public void onCancelled(GestureDescription g2) {
+                        Log.e(TAG, "DoubleTap retry CANCELLED — gesture dispatch broken");
+                    }
+                }, null);
+            }
+        }, null);
     }
 
     @Override

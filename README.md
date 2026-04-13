@@ -11,6 +11,9 @@ Scroll Instagram with your volume buttons.
 | Volume Up | Scroll to previous post |
 | Volume Down | Scroll to next post |
 | 2x Volume Down | Like the post |
+| Hold Volume Up | Open comments |
+| Volume Down (in comments) | Scroll through comments |
+| Hold Volume Up (in comments) | Close comments |
 
 Only active when Instagram is in the foreground. Volume keys work normally in every other app.
 
